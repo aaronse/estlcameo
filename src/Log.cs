@@ -29,6 +29,7 @@ namespace EstlCameo
         private static bool _consoleOutput = false;
         private static bool _traceOutput = true;
 
+
         /// <summary>
         /// Include timestamp in each log line.
         /// </summary>
@@ -82,6 +83,12 @@ namespace EstlCameo
             get => _traceOutput;
             set => _traceOutput = value;
         }
+
+        /// <summary>
+        /// The currently configured log file path, or null if none.
+        /// </summary>
+        public static string CurrentLogFile => _logFile;
+
 
         /// <summary>
         /// Configure a log file. Passing null or empty disables file logging.

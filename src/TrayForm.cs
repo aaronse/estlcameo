@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Windows.Forms;
 
+
 namespace EstlCameo
 {
     public partial class TrayForm : Form
@@ -9,6 +10,8 @@ namespace EstlCameo
         private SnapshotManager snapshot;
         private KeyboardHook keyboard;
         private SnapshotViewerForm _snapshotViewer;
+        private LogViewerForm _logViewer;
+
 
         public TrayForm()
         {
@@ -51,6 +54,40 @@ namespace EstlCameo
                 }
 
                 _snapshotViewer.BringToFrontAndFocus();
+            }));
+
+            // 🔍 NEW: Open Log Viewer
+            menu.Items.Add(new ToolStripMenuItem("Open Log Viewer…", null, (_, __) =>
+            {
+                try
+                {
+                    string logPath = Log.CurrentLogFile;
+
+                    if (string.IsNullOrEmpty(logPath))
+                    {
+                        // Fallback to standard location used in Program/Log setup.
+                        string logDir = System.IO.Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                            "EstlCameo");
+                        System.IO.Directory.CreateDirectory(logDir);
+                        logPath = System.IO.Path.Combine(logDir, "EstlCameo.log");
+
+                        // Ensure Log is actually writing there from now on
+                        Log.SetLogFile(logPath, append: true);
+                    }
+
+                    if (_logViewer == null || _logViewer.IsDisposed)
+                    {
+                        _logViewer = new LogViewerForm(logPath);
+                    }
+
+                    _logViewer.Show();
+                    _logViewer.BringToFront();
+                }
+                catch (Exception ex)
+                {
+                    Toast.Show("Unable to open log viewer.\n" + ex.Message);
+                }
             }));
 
             // 🔍 NEW: Open Log Folder
