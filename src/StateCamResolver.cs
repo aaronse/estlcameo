@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace EstlCameo
 {
@@ -17,7 +18,7 @@ namespace EstlCameo
         private static DateTime _lastLoad;
         private static string _lastFilePath;
 
-        public static StateCamInfo Load()
+        public static StateCamInfo Load(string projectFileName)
         {
             // Reload at most every 5 seconds
             if (_cached != null && (DateTime.Now - _lastLoad).TotalSeconds < 5)
@@ -31,10 +32,22 @@ namespace EstlCameo
             if (!Directory.Exists(baseDir))
                 return _cached ?? new StateCamInfo();
 
-            // Search all profiles for "State CAM.txt"
-            var candidates = Directory.GetFiles(baseDir, "State CAM.txt", SearchOption.AllDirectories);
-            if (candidates.Length == 0)
-                return _cached ?? new StateCamInfo();
+            string[] candidates;
+            if (!string.IsNullOrEmpty(projectFileName) && projectFileName.ToLowerInvariant().EndsWith(".e10"))
+            {
+                // Search all profiles for older EstlCam 11 "Settings Estlcam.txt"
+                candidates = Directory.GetFiles(baseDir, "Settings Estlcam.txt", SearchOption.AllDirectories);
+                if (candidates.Length == 0)
+                    return _cached ?? new StateCamInfo();
+            }
+            else
+            {
+                // Search all profiles for EstlCam 12 "State CAM.txt"
+                candidates = Directory.GetFiles(baseDir, "State CAM.txt", SearchOption.AllDirectories);
+                if (candidates.Length == 0)
+                    return _cached ?? new StateCamInfo();
+            }
+
 
             // Prefer the most recently written
             string statePath = candidates
@@ -85,7 +98,7 @@ namespace EstlCameo
             if (string.IsNullOrWhiteSpace(fileNameOnly))
                 return null;
 
-            var state = Load();
+            var state = Load(fileNameOnly);
 
             // 1) MRU match by file name
             var candidates = state.RecentFiles

@@ -135,7 +135,7 @@ namespace EstlCameo
             {
                 // If Estlcam doesn't have an active .E12 file (blank workspace or DXF, etc.),
                 // quietly do nothing — no dialog, no toast.
-                if (!TryGetActiveEstlcamProjectFileName(out _))
+                if (!TryGetActiveEstlcamProjectFileName(out activeProjectFileName))
                 {
                     return;
                 }
@@ -146,7 +146,7 @@ namespace EstlCameo
                 // 1b) If still unknown, use same branded dialog + file picker
                 if (string.IsNullOrEmpty(path))
                 {
-                    if (!ShowProjectResolutionDialog(out var userPath))
+                    if (!ShowProjectResolutionDialog(activeProjectFileName, out var userPath))
                     {
                         Toast.Show(
                             "EstlCameo: No project selected.\n" +
@@ -251,7 +251,7 @@ namespace EstlCameo
             // 2b) If still unknown, ask the user once via the project resolution dialog.
             if (string.IsNullOrEmpty(path))
             {
-                if (!ShowProjectResolutionDialog(out var userPath))
+                if (!ShowProjectResolutionDialog(activeProjectFileName, out var userPath))
                 {
                     Toast.Show(
                         "EstlCameo: Snapshot not created.\n" +
@@ -312,12 +312,12 @@ namespace EstlCameo
             // 2) Prompt user to pick project file
             using (var dlg = new OpenFileDialog())
             {
-                dlg.Title = "Select Estlcam project file for snapshots";
-                dlg.Filter = "Estlcam project (*.e12)|*.e12|All files (*.*)|*.*";
+                dlg.Title = "Select Estlcam project file for snapshots (Resolving Active EstlCam)";
+                dlg.Filter = "Estlcam 12 project (*.e12)|*.e12|Estlcam 11 project (*.e10)|*.e10|All files (*.*)|*.*";
                 dlg.FileName = fileName;
 
                 // Optional: seed with Dir projects from State CAM
-                var state = StateCamResolver.Load();
+                var state = StateCamResolver.Load(fileName);
                 if (!string.IsNullOrEmpty(state.DirProjects) && Directory.Exists(state.DirProjects))
                 {
                     dlg.InitialDirectory = state.DirProjects;
@@ -351,12 +351,12 @@ namespace EstlCameo
 
             using (var dlg = new OpenFileDialog())
             {
-                dlg.Title = "Select Estlcam project file for snapshots (expected save)";
-                dlg.Filter = "Estlcam project (*.e12)|*.e12|All files (*.*)|*.*";
+                dlg.Title = "Select Estlcam 12 project file for snapshots (Expected Save)";
+                dlg.Filter = "Estlcam 12 project (*.e12)|*.e12|Estlcam 11 project (*.e10)|*.e10|All files (*.*)|*.*";
                 dlg.FileName = fileName;
 
                 // Try to seed initial directory from State CAM
-                var state = StateCamResolver.Load();
+                var state = StateCamResolver.Load(fileName);
                 if (!string.IsNullOrEmpty(state.DirProjects) && Directory.Exists(state.DirProjects))
                 {
                     dlg.InitialDirectory = state.DirProjects;
@@ -372,7 +372,7 @@ namespace EstlCameo
         }
 
 
-        private bool ShowProjectResolutionDialog(out string selectedPath)
+        private bool ShowProjectResolutionDialog(string activeProjectFileName, out string selectedPath)
         {
             selectedPath = null;
 
@@ -389,11 +389,11 @@ namespace EstlCameo
             // User chose "Select project file…" → now show file picker
             using (var picker = new OpenFileDialog())
             {
-                picker.Title = "Select Estlcam project file for snapshots";
-                picker.Filter = "Estlcam project (*.e12)|*.e12|All files (*.*)|*.*";
+                picker.Title = "Select Estlcam project file for snapshots (Resolving)";
+                picker.Filter = "Estlcam 12 project (*.e12)|*.e12|Estlcam 11 project (*.e10)|*.e10|All files (*.*)|*.*";
 
                 // Seed from State CAM if possible
-                var state = StateCamResolver.Load();
+                var state = StateCamResolver.Load(activeProjectFileName);
                 if (!string.IsNullOrEmpty(state.DirProjects) && System.IO.Directory.Exists(state.DirProjects))
                 {
                     picker.InitialDirectory = state.DirProjects;
@@ -445,6 +445,11 @@ namespace EstlCameo
             return string.Equals(
                 Path.GetExtension(pathOrFileName),
                 ".e12",
+                StringComparison.OrdinalIgnoreCase
+            ) ||
+            string.Equals(
+                Path.GetExtension(pathOrFileName),
+                ".e10",
                 StringComparison.OrdinalIgnoreCase
             );
         }

@@ -139,6 +139,11 @@ namespace EstlCameo
                 if (!proc.ProcessName.Contains("estlcam", StringComparison.OrdinalIgnoreCase))
                     return false;
 
+                // Filter out EsltCameo or other companion apps
+                if (!proc.MainModule.ModuleName.Contains("estlcam1", StringComparison.OrdinalIgnoreCase) &&
+                    !proc.MainModule.ModuleName.Contains("estlcam.exe", StringComparison.OrdinalIgnoreCase))
+                    return false;
+
                 pid = (int)processId;
                 int len = GetWindowTextLength(hwnd);
                 var sb = new System.Text.StringBuilder(len + 1);

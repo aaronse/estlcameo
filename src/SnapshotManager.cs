@@ -41,9 +41,43 @@ namespace EstlCameo
 
         public void SetWorkingFile(string path)
         {
+            // Allow null/empty as a signal to "detach" from any current project.
             if (string.IsNullOrWhiteSpace(path))
-                throw new ArgumentNullException(nameof(path));
+            {
+                Log.Debug("SetWorkingFile, clearing working file (detaching).");
 
+                // Stop watching the previous file, if any
+                if (watcher != null)
+                {
+                    try
+                    {
+                        watcher.EnableRaisingEvents = false;
+                        watcher.Dispose();
+                    }
+                    catch { /* best-effort */ }
+                    watcher = null;
+                }
+
+                // Stop any pending "expected save" timer
+                lock (saveLock)
+                {
+                    waitingForSave = false;
+                    saveExpectationTimer?.Dispose();
+                    saveExpectationTimer = null;
+                }
+
+                workingFile = null;
+                workingExt = null;
+                snapshotDir = null;
+                index = -1;
+
+                snapshots.Clear();
+                snapshotPaths.Clear();
+
+                return;
+            }
+
+            // Normal attach logic
             if (string.Equals(workingFile, path, StringComparison.OrdinalIgnoreCase))
                 return; // already tracking
 
@@ -68,9 +102,10 @@ namespace EstlCameo
 
             watcher = new FileSystemWatcher(
                 Path.GetDirectoryName(workingFile) ?? "",
-                Path.GetFileName(workingFile) ?? "*.*");
-
-            watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size;
+                Path.GetFileName(workingFile) ?? "*.*")
+            {
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size
+            };
             watcher.Changed += (_, __) => OnFileSaved();
             watcher.EnableRaisingEvents = true;
 
