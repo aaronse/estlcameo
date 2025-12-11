@@ -1,4 +1,4 @@
-﻿// Mostly vibed https://chatgpt.com/c/693b3216-9a50-832b-b45d-b8c9e7b84e53
+﻿// Mostly vibed https://chatgpt.com/c/693b3216-9a50-832b-b45d-b8c9e7b84e53, behavior is HEAVILY inspired by TextAnalysisTool log viewer.
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -65,12 +65,6 @@ namespace EstlCameo
             Other
         }
 
-        private enum FilterMatchMode
-        {
-            Basic,      // substring
-            Wildcard,   // * ?
-            Regex
-        }
 
         private sealed class LogLine
         {
@@ -80,71 +74,6 @@ namespace EstlCameo
             public bool[] Markers { get; } = new bool[MarkerCount];
         }
 
-        private sealed class LogFilter
-        {
-            public char Key { get; set; }
-            public bool Enabled { get; set; } = true;
-            public bool Include { get; set; } = true;
-            public FilterMatchMode MatchMode { get; set; } = FilterMatchMode.Basic;
-            public string Pattern { get; set; } = string.Empty;
-
-            [Browsable(false)]
-            public Regex CompiledRegex { get; set; }
-
-            public override string ToString()
-            {
-                string kind = Include ? "Include" : "Exclude";
-                return $"{Key}: {kind} / {MatchMode} / \"{Pattern}\"";
-            }
-
-            public bool IsMatch(string line)
-            {
-                if (string.IsNullOrEmpty(Pattern))
-                    return false;
-
-                switch (MatchMode)
-                {
-                    case FilterMatchMode.Basic:
-                        return line.IndexOf(Pattern, StringComparison.OrdinalIgnoreCase) >= 0;
-
-                    case FilterMatchMode.Wildcard:
-                        try
-                        {
-                            var regex = CompiledRegex ??= BuildWildcardRegex(Pattern);
-                            return regex.IsMatch(line);
-                        }
-                        catch
-                        {
-                            return false;
-                        }
-
-                    case FilterMatchMode.Regex:
-                        try
-                        {
-                            var regex = CompiledRegex ??= new Regex(
-                                Pattern,
-                                RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
-                            return regex.IsMatch(line);
-                        }
-                        catch
-                        {
-                            return false;
-                        }
-
-                    default:
-                        return false;
-                }
-            }
-
-            private static Regex BuildWildcardRegex(string pattern)
-            {
-                // Escape regex meta, then expand * and ?
-                string escaped = Regex.Escape(pattern)
-                    .Replace(@"\*", ".*")
-                    .Replace(@"\?", ".");
-                return new Regex(escaped, RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
-            }
-        }
 
         private sealed class FilterConfig
         {
@@ -158,6 +87,8 @@ namespace EstlCameo
             public FilterMatchMode MatchMode { get; set; }
             public string Pattern { get; set; }
             public bool Enabled { get; set; }
+            public int? ForeColorArgb { get; set; }
+            public int? BackColorArgb { get; set; }
         }
 
 
@@ -248,7 +179,19 @@ namespace EstlCameo
             };
             toolStrip.Items.Add(_btnShowOnlyFiltered);
 
-            Controls.Add(toolStrip);
+            var btnResetFilters = new ToolStripButton("Reset Filters")   // NEW
+            {
+                ToolTipText = "Clear all filters and load default W/E filters."
+            };
+            btnResetFilters.Click += (_, __) =>
+            {
+                ResetFiltersToDefaults();
+                SaveFilterConfig();
+                RebuildVisibleLines();
+            };
+            toolStrip.Items.Add(btnResetFilters);
+
+            //Controls.Add(toolStrip);
 
             // SplitContainer
             var split = new SplitContainer
@@ -271,10 +214,10 @@ namespace EstlCameo
                 BackColor = Color.White,
                 Cursor = Cursors.Hand
             };
-            _scrollMapPanel.Paint += OnScrollMapPanelPaint;                  // NEW
-            _scrollMapPanel.MouseDown += OnScrollMapPanelMouseDown;          // NEW
-            _scrollMapPanel.MouseMove += OnScrollMapPanelMouseMove;          // NEW
-            _scrollMapPanel.MouseUp += OnScrollMapPanelMouseUp;              // NEW
+            _scrollMapPanel.Paint += OnScrollMapPanelPaint;                  
+            _scrollMapPanel.MouseDown += OnScrollMapPanelMouseDown;          
+            _scrollMapPanel.MouseMove += OnScrollMapPanelMouseMove;          
+            _scrollMapPanel.MouseUp += OnScrollMapPanelMouseUp;              
 
             _scrollMapSplitter = new Splitter
             {
@@ -289,7 +232,7 @@ namespace EstlCameo
                 DrawMode = DrawMode.OwnerDrawFixed,
                 IntegralHeight = false,
                 HorizontalScrollbar = true,
-                SelectionMode = SelectionMode.MultiExtended   // NEW: proper multi-select
+                SelectionMode = SelectionMode.MultiExtended   // proper multi-select
             };
             _lineList.DrawItem += OnLineListDrawItem;
             _lineList.SelectedIndexChanged += (_, __) => UpdateStatusBar();
@@ -358,9 +301,9 @@ namespace EstlCameo
             _filterGrid.KeyDown += OnFilterGridKeyDown;
             _filterGrid.CellDoubleClick += (_, __) => EditSelectedFilter();
 
-            split.Panel2.Controls.Add(_filterGrid);
-
-            Controls.Add(split);
+            //split.Panel2.Controls.Add(_filterGrid);
+            //split.Dock = DockStyle.Fill;
+            //Controls.Add(split);
 
             // Status strip
             var status = new StatusStrip();
@@ -378,7 +321,13 @@ namespace EstlCameo
             status.Items.Add(new ToolStripSeparator());
             status.Items.Add(_statusTotal);
 
-            Controls.Add(status);
+            split.Panel2.Controls.Add(_filterGrid);
+            split.Dock = DockStyle.Fill;
+
+            // ADD ORDER MATTERS: bottom, fill, then top
+            Controls.Add(split);   // Fill
+            Controls.Add(status);  // Bottom
+            Controls.Add(toolStrip); // Top
         }
 
         private void HookEvents()
@@ -393,15 +342,39 @@ namespace EstlCameo
                 }
             };
 
-            KeyDown += OnFormKeyDown;    // NEW – for Ctrl+N global
+            KeyDown += OnFormKeyDown;    // for Ctrl+N global
         }
 
-        private void OnFormKeyDown(object sender, KeyEventArgs e)    // NEW
+        private void OnFormKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Control && e.KeyCode == Keys.N)
             {
                 AddFilter();
                 e.Handled = true;
+            }
+
+            // Ctrl+H toggles Show Only Filtered Lines
+            if (e.Control && e.KeyCode == Keys.H)
+            {
+                _btnShowOnlyFiltered.Checked = !_btnShowOnlyFiltered.Checked;
+                e.Handled = true;
+                return;
+            }
+
+            // Filter navigation: A..Z, Shift+A..Z
+            if (!e.Control && !e.Alt && e.KeyCode >= Keys.A && e.KeyCode <= Keys.Z)
+            {
+                char key = (char)e.KeyCode;
+                var filter = FindFilterByKey(key);
+                if (filter != null && filter.Enabled)
+                {
+                    if (e.Shift)
+                        JumpToPreviousFilterMatch(filter);
+                    else
+                        JumpToNextFilterMatch(filter);
+
+                    e.Handled = true;
+                }
             }
         }
 
@@ -454,10 +427,13 @@ namespace EstlCameo
             }
         }
 
-        private void LoadFilterConfig()                       // NEW
+        private void LoadFilterConfig()
         {
             if (string.IsNullOrEmpty(_filterConfigPath) || !File.Exists(_filterConfigPath))
+            {
+                ResetFiltersToDefaults();   // use defaults when no config yet
                 return;
+            }
 
             try
             {
@@ -476,7 +452,9 @@ namespace EstlCameo
                             Include = f.Include,
                             MatchMode = f.MatchMode,
                             Pattern = f.Pattern,
-                            Enabled = f.Enabled
+                            Enabled = f.Enabled,
+                            ForeColor = f.ForeColorArgb.HasValue ? Color.FromArgb(f.ForeColorArgb.Value) : Color.Empty,
+                            BackColor = f.BackColorArgb.HasValue ? Color.FromArgb(f.BackColorArgb.Value) : Color.Empty
                         });
                     }
                 }
@@ -494,7 +472,7 @@ namespace EstlCameo
             }
         }
 
-        private void SaveFilterConfig()                       // NEW
+        private void SaveFilterConfig()
         {
             if (string.IsNullOrEmpty(_filterConfigPath))
                 return;
@@ -509,7 +487,9 @@ namespace EstlCameo
                         Include = f.Include,
                         MatchMode = f.MatchMode,
                         Pattern = f.Pattern,
-                        Enabled = f.Enabled
+                        Enabled = f.Enabled,
+                        ForeColorArgb = f.ForeColor.IsEmpty ? null : f.ForeColor.ToArgb(),
+                        BackColorArgb = f.BackColor.IsEmpty ? null : f.BackColor.ToArgb()
                     }).ToList()
                 };
 
@@ -525,6 +505,40 @@ namespace EstlCameo
             {
                 // Best-effort; don't crash logging UI
             }
+        }
+
+        private void ResetFiltersToDefaults()                          // NEW
+        {
+            _filters.Clear();
+
+            // Warn filter [W]*, yellow background
+            _filters.Add(new LogFilter
+            {
+                Include = true,
+                Enabled = true,
+                MatchMode = FilterMatchMode.Wildcard,
+                Pattern = "[W]*",
+                ForeColor = Color.Black,
+                BackColor = Color.FromArgb(255, 255, 220) // light yellow
+            });
+
+            // Error filter [E]*, light red background
+            _filters.Add(new LogFilter
+            {
+                Include = true,
+                Enabled = true,
+                MatchMode = FilterMatchMode.Wildcard,
+                Pattern = "[E]*",
+                ForeColor = Color.Black,
+                BackColor = Color.LightSalmon
+            });
+
+            ReindexFilterKeys();
+            _showOnlyFilteredLines = false;
+            if (_btnShowOnlyFiltered != null)
+                _btnShowOnlyFiltered.Checked = _showOnlyFilteredLines;
+
+            _filterGrid?.Refresh();
         }
 
 
@@ -648,7 +662,7 @@ namespace EstlCameo
             }
 
             UpdateStatusBar();
-            _scrollMapPanel?.Invalidate();    // NEW
+            _scrollMapPanel?.Invalidate();    
         }
 
 
@@ -732,6 +746,21 @@ namespace EstlCameo
             Color backColor = e.BackColor;
             Color foreColor = e.ForeColor;
 
+            // Optional: first matching include-filter color
+            Color filterFore = Color.Empty;
+            Color filterBack = Color.Empty;
+            foreach (var f in _filters)
+            {
+                if (!f.Enabled || !f.Include)
+                    continue;
+                if (f.IsMatch(line.Text))
+                {
+                    filterFore = f.ForeColor;
+                    filterBack = f.BackColor;
+                    break;
+                }
+            }
+
             // Base on log type
             switch (line.Type)
             {
@@ -752,12 +781,16 @@ namespace EstlCameo
                     backColor = Color.White;
                     foreColor = Color.Black;
                     break;
-                case LogMessageType.Other:
+                default:
                     backColor = Color.White;
                     foreColor = Color.DarkSlateGray;
                     break;
             }
 
+            // Override with filter-specific colors if set
+            if (!filterBack.IsEmpty) backColor = filterBack;
+            if (!filterFore.IsEmpty) foreColor = filterFore;
+            
             if ((e.State & DrawItemState.Selected) == DrawItemState.Selected)
             {
                 backColor = SystemColors.Highlight;
@@ -769,7 +802,7 @@ namespace EstlCameo
             {
                 e.Graphics.FillRectangle(backBrush, e.Bounds);
 
-                // NEW: marker bar on the left if any marker is set
+                // marker bar on the left if any marker is set
                 bool hasMarker = line.Markers.Any(m => m);
                 int textOffsetX = e.Bounds.X + 2;
 
@@ -824,7 +857,7 @@ namespace EstlCameo
 
         private void AddFilter()
         {
-            using (var dlg = new FilterEditDialog())
+            using (var dlg = new LogFilterForm())
             {
                 if (dlg.ShowDialog(this) != DialogResult.OK)
                     return;
@@ -834,7 +867,9 @@ namespace EstlCameo
                     Include = dlg.Include,
                     MatchMode = dlg.Mode,
                     Pattern = dlg.Pattern,
-                    Enabled = true
+                    Enabled = true,
+                    ForeColor = dlg.ForeColorValue,
+                    BackColor = dlg.BackColorValue
                 };
 
                 _filters.Add(filter);
@@ -853,11 +888,13 @@ namespace EstlCameo
             if (filter == null)
                 return;
 
-            using (var dlg = new FilterEditDialog())
+            using (var dlg = new LogFilterForm())
             {
                 dlg.Include = filter.Include;
                 dlg.Mode = filter.MatchMode;
                 dlg.Pattern = filter.Pattern;
+                dlg.ForeColorValue = filter.ForeColor;
+                dlg.BackColorValue = filter.BackColor;
 
                 if (dlg.ShowDialog(this) != DialogResult.OK)
                     return;
@@ -865,7 +902,9 @@ namespace EstlCameo
                 filter.Include = dlg.Include;
                 filter.MatchMode = dlg.Mode;
                 filter.Pattern = dlg.Pattern;
-                filter.CompiledRegex = null; // force recompile
+                filter.CompiledRegex = null; // Force recompile
+                filter.ForeColor = dlg.ForeColorValue;
+                filter.BackColor = dlg.BackColorValue;
 
                 _filterGrid.Refresh();
                 RebuildVisibleLines();
@@ -981,22 +1020,22 @@ namespace EstlCameo
                 return;
             }
 
-            // A..Z – filter navigation
-            if (e.KeyCode >= Keys.A && e.KeyCode <= Keys.Z && !e.Control && !e.Alt)
-            {
-                char key = (char)e.KeyCode;
-                var filter = FindFilterByKey(key);
-                if (filter != null && filter.Enabled)
-                {
-                    if (e.Shift)
-                        JumpToPreviousFilterMatch(filter);
-                    else
-                        JumpToNextFilterMatch(filter);
+            //// A..Z – filter navigation
+            //if (e.KeyCode >= Keys.A && e.KeyCode <= Keys.Z && !e.Control && !e.Alt)
+            //{
+            //    char key = (char)e.KeyCode;
+            //    var filter = FindFilterByKey(key);
+            //    if (filter != null && filter.Enabled)
+            //    {
+            //        if (e.Shift)
+            //            JumpToPreviousFilterMatch(filter);
+            //        else
+            //            JumpToNextFilterMatch(filter);
 
-                    e.Handled = true;
-                }
-                return;
-            }
+            //        e.Handled = true;
+            //    }
+            //    return;
+            //}
 
             // 1..8, Ctrl+1..8 – markers
             if (IsMarkerKey(e.KeyCode))
@@ -1022,13 +1061,13 @@ namespace EstlCameo
             }
         }
 
-        private static bool IsMarkerKey(Keys key)          // NEW
+        private static bool IsMarkerKey(Keys key)          
         {
             return (key >= Keys.D1 && key <= Keys.D8) ||
                    (key >= Keys.NumPad1 && key <= Keys.NumPad8);
         }
 
-        private static int MarkerIndexFromKey(Keys key)    // NEW
+        private static int MarkerIndexFromKey(Keys key)    
         {
             if (key >= Keys.D1 && key <= Keys.D8)
                 return key - Keys.D1;
@@ -1037,7 +1076,7 @@ namespace EstlCameo
             return -1;
         }
 
-        private void ToggleMarkerForSelection(int marker)  // NEW
+        private void ToggleMarkerForSelection(int marker)  
         {
             if (_lineList.SelectedIndices.Count == 0)
                 return;
@@ -1053,7 +1092,7 @@ namespace EstlCameo
             _scrollMapPanel?.Invalidate();
         }
 
-        private void JumpToNextMarkerMatch(int marker)     // NEW
+        private void JumpToNextMarkerMatch(int marker)     
         {
             if (_visibleLines.Count == 0)
                 return;
@@ -1073,7 +1112,7 @@ namespace EstlCameo
             }
         }
 
-        private void JumpToPreviousMarkerMatch(int marker) // NEW
+        private void JumpToPreviousMarkerMatch(int marker) 
         {
             if (_visibleLines.Count == 0)
                 return;
@@ -1208,7 +1247,7 @@ namespace EstlCameo
             }
         }
 
-        private void OnScrollMapPanelPaint(object sender, PaintEventArgs e)   // NEW
+        private void OnScrollMapPanelPaint(object sender, PaintEventArgs e)   
         {
             if (_visibleLines.Count == 0)
                 return;
@@ -1243,7 +1282,10 @@ namespace EstlCameo
                 {
                     if (f.IsMatch(line.Text))
                     {
-                        var color = FilterColorPalette[stripeIndex % FilterColorPalette.Length];
+                        Color color = f.ForeColor;
+                        if (color.IsEmpty)
+                            color = FilterColorPalette[stripeIndex % FilterColorPalette.Length];
+
                         using (var pen = new Pen(color))
                         {
                             int x0 = stripeIndex * stripeWidth;
@@ -1257,7 +1299,7 @@ namespace EstlCameo
             }
         }
 
-        private void OnScrollMapPanelMouseDown(object sender, MouseEventArgs e)   // NEW
+        private void OnScrollMapPanelMouseDown(object sender, MouseEventArgs e)   
         {
             if (e.Button != MouseButtons.Left)
                 return;
@@ -1266,7 +1308,7 @@ namespace EstlCameo
             ScrollMapJumpTo(e.Y);
         }
 
-        private void OnScrollMapPanelMouseMove(object sender, MouseEventArgs e)   // NEW
+        private void OnScrollMapPanelMouseMove(object sender, MouseEventArgs e)   
         {
             if (_scrollMapDragging && e.Button == MouseButtons.Left)
             {
@@ -1274,7 +1316,7 @@ namespace EstlCameo
             }
         }
 
-        private void OnScrollMapPanelMouseUp(object sender, MouseEventArgs e)     // NEW
+        private void OnScrollMapPanelMouseUp(object sender, MouseEventArgs e)     
         {
             if (e.Button == MouseButtons.Left)
             {
@@ -1282,7 +1324,7 @@ namespace EstlCameo
             }
         }
 
-        private void ScrollMapJumpTo(int y)                                       // NEW
+        private void ScrollMapJumpTo(int y)                                       
         {
             if (_visibleLines.Count == 0)
                 return;
@@ -1301,150 +1343,6 @@ namespace EstlCameo
 
         // --- Filter edit dialog ---
 
-        private sealed class FilterEditDialog : Form
-        {
-            private RadioButton _rbInclude;
-            private RadioButton _rbExclude;
-            private RadioButton _rbBasic;
-            private RadioButton _rbWildcard;
-            private RadioButton _rbRegex;
-            private TextBox _txtPattern;
-            private Button _btnOk;
-            private Button _btnCancel;
-
-            public bool Include { get; set; } = true;
-            public FilterMatchMode Mode { get; set; } = FilterMatchMode.Basic;
-            public string Pattern { get; set; } = string.Empty;
-
-            public FilterEditDialog()
-            {
-                Text = "Edit Filter";
-                StartPosition = FormStartPosition.CenterParent;
-                FormBorderStyle = FormBorderStyle.FixedDialog;
-                MinimizeBox = false;
-                MaximizeBox = false;
-                ClientSize = new Size(420, 220);
-                ShowInTaskbar = false;
-
-                BuildUi();
-            }
-
-            private void BuildUi()
-            {
-                var grpType = new GroupBox
-                {
-                    Text = "Filter Type",
-                    Left = 10,
-                    Top = 10,
-                    Width = 180,
-                    Height = 80
-                };
-
-                _rbInclude = new RadioButton { Text = "Include", Left = 10, Top = 20, AutoSize = true, Checked = true };
-                _rbExclude = new RadioButton { Text = "Exclude", Left = 10, Top = 45, AutoSize = true };
-
-                grpType.Controls.Add(_rbInclude);
-                grpType.Controls.Add(_rbExclude);
-                Controls.Add(grpType);
-
-                var grpMode = new GroupBox
-                {
-                    Text = "Match Mode",
-                    Left = 210,
-                    Top = 10,
-                    Width = 190,
-                    Height = 80
-                };
-
-                _rbBasic = new RadioButton { Text = "Basic (contains)", Left = 10, Top = 20, AutoSize = true, Checked = true };
-                _rbWildcard = new RadioButton { Text = "Wildcard (* ?)", Left = 10, Top = 45, AutoSize = true };
-                _rbRegex = new RadioButton { Text = "Regex", Left = 10, Top = 70, AutoSize = true };
-
-                grpMode.Controls.Add(_rbBasic);
-                grpMode.Controls.Add(_rbWildcard);
-                grpMode.Controls.Add(_rbRegex);
-                Controls.Add(grpMode);
-
-                var lblPattern = new Label
-                {
-                    Text = "Pattern:",
-                    Left = 10,
-                    Top = 105,
-                    AutoSize = true
-                };
-                Controls.Add(lblPattern);
-
-                _txtPattern = new TextBox
-                {
-                    Left = 10,
-                    Top = 125,
-                    Width = 390
-                };
-                Controls.Add(_txtPattern);
-
-                _btnOk = new Button
-                {
-                    Text = "OK",
-                    DialogResult = DialogResult.OK,
-                    Left = 230,
-                    Top = 170,
-                    Width = 80
-                };
-                _btnOk.Click += (_, __) => OnOk();
-
-                _btnCancel = new Button
-                {
-                    Text = "Cancel",
-                    DialogResult = DialogResult.Cancel,
-                    Left = 320,
-                    Top = 170,
-                    Width = 80
-                };
-
-                Controls.Add(_btnOk);
-                Controls.Add(_btnCancel);
-
-                AcceptButton = _btnOk;
-                CancelButton = _btnCancel;
-
-                // initial values
-                Load += (_, __) =>
-                {
-                    _rbInclude.Checked = Include;
-                    _rbExclude.Checked = !Include;
-
-                    _rbBasic.Checked = Mode == FilterMatchMode.Basic;
-                    _rbWildcard.Checked = Mode == FilterMatchMode.Wildcard;
-                    _rbRegex.Checked = Mode == FilterMatchMode.Regex;
-
-                    _txtPattern.Text = Pattern ?? string.Empty;
-                    _txtPattern.SelectionStart = _txtPattern.TextLength;
-                };
-            }
-
-            private void OnOk()
-            {
-                Include = _rbInclude.Checked;
-                if (_rbWildcard.Checked) Mode = FilterMatchMode.Wildcard;
-                else if (_rbRegex.Checked) Mode = FilterMatchMode.Regex;
-                else Mode = FilterMatchMode.Basic;
-
-                Pattern = _txtPattern.Text ?? string.Empty;
-
-                if (string.IsNullOrWhiteSpace(Pattern))
-                {
-                    MessageBox.Show(
-                        this,
-                        "Please enter a pattern.",
-                        "Filter",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
-                    DialogResult = DialogResult.None;
-                    return;
-                }
-
-                Close();
-            }
-        }
+        
     }
 }
