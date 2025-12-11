@@ -51,7 +51,9 @@ namespace EstlCameo
             PopulateInitialData();
         }
 
+
         // --- Layout / init ---
+
 
         private void InitializeComponent()
         {
@@ -305,6 +307,7 @@ namespace EstlCameo
             //panelBottom.BackColor = Color.Transparent;
         }
 
+
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
@@ -330,6 +333,18 @@ namespace EstlCameo
                 // (user resizing later will correct it).
                 splitMain.SplitterDistance = totalWidth / 2;
             }
+        }
+
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == Keys.Escape)
+            {
+                this.Close();
+                return true; // signal that we handled it
+            }
+
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
 
