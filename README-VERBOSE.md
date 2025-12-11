@@ -1,18 +1,18 @@
 ﻿# 📸 **EstlCameo**
 
-### *Snapshot Undo & Timeline Viewer for Estlcam*
+### *Snapshot Undo & Timeline Viewer for Estlcam 12*
 
 #### *A tiny companion app by the community, for the community.*
 
 EstlCameo is a lightweight Windows tray utility that gives **https://www.estlcam.de/** users something they’ve wanted for years:
 
 > **Automatic snapshots + timeline browsing + safe restore**
-> …without modifying Estlcam itself.
+> …without modifying Estlcam 12 itself.
 
-EstlCameo quietly runs in the background, listens for `Ctrl+S` inside Estlcam, and creates timestamped backup copies of your `.E12` project. Think of it as **“Time Machine for Estlcam projects.”**
+EstlCameo quietly runs in the background, listens for `Ctrl+S` inside Estlcam 12, and creates timestamped backup copies of your `.E12` project. Think of it as **“Time Machine for Estlcam projects.”**
 
 ✔ No plugins
-✔ No Estlcam mods
+✔ No Estlcam 12 mods
 ✔ No risky patches
 ✔ 100% optional & non-intrusive
 
@@ -24,7 +24,7 @@ EstlCameo simply watches your saved `.E12` file, captures versioned snapshots, a
 
 ### 📸 **1. Automatic Snapshots on Save (`Ctrl+S`)**
 
-Whenever you press **Ctrl+S inside Estlcam**, EstlCameo:
+Whenever you press **Ctrl+S inside Estlcam 12**, EstlCameo:
 
 * Detects the save
 * Creates a timestamped snapshot of the `.E12` file
