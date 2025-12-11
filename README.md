@@ -1,12 +1,12 @@
 ﻿# 📸 EstlCameo
 
-### **“Undo-style snapshots for Estlcam.”**
+### **“Undo-style snapshots for Estlcam 12.”**
 
-EstlCameo is a tiny Windows app that automatically saves **versioned snapshots** of your Estlcam project every time you press **Ctrl+S**. It gives you a simple timeline viewer so you can browse older versions and restore any one of them without ever risking your original file.
+EstlCameo is a tiny Windows app that automatically saves **versioned snapshots** of your Estlcam 12 project every time you press **Ctrl+S**. It gives you a simple timeline viewer so you can browse older versions and restore any one of them without ever risking your original file.
 
 ### ⭐ What It Does
 
-* **Auto-snapshots** your `.E12` file whenever you save in Estlcam
+* **Auto-snapshots** your `.E12` file whenever you save in Estlcam 12
 * **Shows a handy toast** with a preview of each snapshot created
 * **Timeline Snapshot Viewer** **Ctrl+R** lets you view and scroll back through all snapshots
 * **Restore safely** as a copy (never overwrites your original file)
