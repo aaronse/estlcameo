@@ -6,6 +6,10 @@ EstlCameo is a tiny Windows app that automatically saves **versioned snapshots**
 
 ### ⭐ What It Does
 
+[![Watch the full install and demo video (5mins)](img/thumbnail.png)](https://youtu.be/-lMe0jcFdbk)
+- 5min full install and demo @ https://youtu.be/-lMe0jcFdbk
+- 1min quick demo @ https://youtu.be/xuAflcn5lFI
+
 * **Auto-snapshots** your `.E12` file whenever you save in Estlcam 12
 * **Shows a handy toast** with a preview of each snapshot created
 * **Timeline Snapshot Viewer** **Ctrl+R** lets you view and scroll back through all snapshots
